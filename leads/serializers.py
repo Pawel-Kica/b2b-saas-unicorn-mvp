@@ -48,6 +48,21 @@ class CompetitorSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'linkedin_url', 'post_count', 'lead_count']
 
 
+class OutreachListSerializer(serializers.ModelSerializer):
+    last_outreach_status = serializers.CharField(read_only=True)
+    last_outreach_method = serializers.CharField(read_only=True)
+    last_outreach_date = serializers.DateField(read_only=True)
+    outreach_count = serializers.IntegerField(read_only=True, default=0)
+
+    class Meta:
+        model = Lead
+        fields = [
+            'id', 'full_name', 'linkedin_profile', 'picture_url',
+            'last_outreach_status', 'last_outreach_method', 'last_outreach_date',
+            'outreach_count',
+        ]
+
+
 class PostSerializer(serializers.ModelSerializer):
     competitor_name = serializers.ReadOnlyField(source='competitor.name')
     lead_count = serializers.IntegerField(read_only=True, default=0)

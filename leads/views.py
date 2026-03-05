@@ -1,13 +1,45 @@
-from django.db.models import Count
+from django.db.models import Count, Subquery, OuterRef
 
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.response import Response
 
 from .models import Lead, Competitor, Post, Outreach
-from .serializers import LeadSerializer, CompetitorSerializer, PostSerializer, PostWithCommentsSerializer, OutreachSerializer
+from .serializers import LeadSerializer, CompetitorSerializer, PostSerializer, PostWithCommentsSerializer, OutreachSerializer, OutreachListSerializer
 from .services import fetch_and_process_leads, enrich_lead
+
+
+@api_view(['GET'])
+def dashboard_stats(request):
+    return Response({
+        "totals": {
+            "competitors": Competitor.objects.count(),
+            "leads": Lead.objects.count(),
+            "posts": Post.objects.count(),
+            "outreaches": Outreach.objects.count(),
+        },
+        "leads_by_competitor": list(
+            Competitor.objects.annotate(count=Count('posts__comment__lead', distinct=True))
+            .values('name', 'count').order_by('-count')
+        ),
+        "posts_by_competitor": list(
+            Competitor.objects.annotate(count=Count('posts'))
+            .values('name', 'count').order_by('-count')
+        ),
+        "outreach_by_status": list(
+            Outreach.objects.values('status')
+            .annotate(count=Count('id')).order_by('-count')
+        ),
+        "outreach_by_method": list(
+            Outreach.objects.values('method')
+            .annotate(count=Count('id')).order_by('-count')
+        ),
+        "leads_by_country": list(
+            Lead.objects.exclude(country__isnull=True).exclude(country='')
+            .values('country').annotate(count=Count('id')).order_by('-count')
+        ),
+    })
 
 
 class LeadViewSet(viewsets.ModelViewSet):
@@ -109,6 +141,23 @@ class PostViewSet(viewsets.ReadOnlyModelViewSet):
         ).get(pk=pk)
         serializer = PostWithCommentsSerializer(post)
         return Response(serializer.data)
+
+
+class OutreachListViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = OutreachListSerializer
+    filter_backends = [SearchFilter, OrderingFilter]
+    search_fields = ['full_name']
+    ordering_fields = ['full_name', 'last_outreach_date']
+    ordering = ['-last_outreach_date']
+
+    def get_queryset(self):
+        latest = Outreach.objects.filter(lead=OuterRef('pk')).order_by('-date')
+        return Lead.objects.filter(outreach_records__isnull=False).distinct().annotate(
+            last_outreach_status=Subquery(latest.values('status')[:1]),
+            last_outreach_method=Subquery(latest.values('method')[:1]),
+            last_outreach_date=Subquery(latest.values('date')[:1]),
+            outreach_count=Count('outreach_records'),
+        )
 
 
 class OutreachViewSet(viewsets.ModelViewSet):
