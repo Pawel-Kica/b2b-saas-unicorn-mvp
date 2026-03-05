@@ -55,6 +55,7 @@ export default function LeadProfileModal({ leadId, onClose }: LeadProfileModalPr
   }
 
   return (
+    <>
     <Modal
       open={leadId !== null}
       onClose={handleClose}

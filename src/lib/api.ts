@@ -2,6 +2,7 @@ import type {
   Competitor,
   Lead,
   Outreach,
+  OutreachListItem,
   Post,
   PostWithComments,
   FetchLeadsResponse,
@@ -21,6 +22,18 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   if (res.status === 204) return undefined as T;
   return res.json();
 }
+
+// Dashboard
+export interface DashboardStats {
+  totals: { competitors: number; leads: number; posts: number; outreaches: number };
+  leads_by_competitor: { name: string; count: number }[];
+  posts_by_competitor: { name: string; count: number }[];
+  outreach_by_status: { status: string; count: number }[];
+  outreach_by_method: { method: string; count: number }[];
+  leads_by_country: { country: string; count: number }[];
+}
+
+export const getDashboardStats = () => request<DashboardStats>("/dashboard/");
 
 // Competitors
 export const getCompetitors = (params?: { search?: string }) => {
@@ -67,6 +80,15 @@ export const updateOutreach = (leadId: number, outreachId: number, data: Partial
   request<Outreach>(`/leads/${leadId}/outreach/${outreachId}/`, { method: "PATCH", body: JSON.stringify(data) });
 export const deleteOutreach = (leadId: number, outreachId: number) =>
   request<void>(`/leads/${leadId}/outreach/${outreachId}/`, { method: "DELETE" });
+
+// Outreach list
+export const getOutreaches = (params?: { search?: string; ordering?: string }) => {
+  const qs = new URLSearchParams();
+  if (params?.search) qs.set("search", params.search);
+  if (params?.ordering) qs.set("ordering", params.ordering);
+  const query = qs.toString();
+  return request<OutreachListItem[]>(`/outreaches/${query ? `?${query}` : ""}`);
+};
 
 // Posts
 export const getPost = (id: number) => request<Post>(`/posts/${id}/`);

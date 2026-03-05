@@ -44,6 +44,17 @@ export interface Lead {
   competitors: string[];
 }
 
+export interface OutreachListItem {
+  id: number;
+  full_name: string;
+  linkedin_profile: string;
+  picture_url: string | null;
+  last_outreach_status: "pending" | "no_reply" | "interested" | "not_interested";
+  last_outreach_method: "email" | "linkedin";
+  last_outreach_date: string;
+  outreach_count: number;
+}
+
 export interface Post {
   id: number;
   post_id: string;
