@@ -1,5 +1,12 @@
 from rest_framework import serializers
-from .models import Lead, Comment, Post, Competitor
+from .models import Lead, Comment, Post, Competitor, Outreach
+
+
+class OutreachSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Outreach
+        fields = ['id', 'lead', 'method', 'status', 'date', 'notes', 'created_at']
+        read_only_fields = ['id', 'lead', 'created_at']
 
 
 class CommentSerializer(serializers.ModelSerializer):
@@ -13,13 +20,64 @@ class CommentSerializer(serializers.ModelSerializer):
 
 class LeadSerializer(serializers.ModelSerializer):
     comments = CommentSerializer(source='comment_set', many=True, read_only=True)
+    outreach_records = OutreachSerializer(many=True, read_only=True)
+    competitors = serializers.SerializerMethodField()
 
     class Meta:
         model = Lead
-        fields = ['id', 'full_name', 'linkedin_profile', 'company', 'role', 'headline', 'picture_url', 'comments']
+        fields = [
+            'id', 'full_name', 'linkedin_profile', 'company', 'headline', 'picture_url',
+            # Enrichment
+            'email', 'job_title', 'followers', 'connections', 'company_website', 'country',
+            # Related
+            'comments', 'outreach_records', 'competitors',
+        ]
+
+    def get_competitors(self, obj):
+        return list(
+            obj.comment_set.values_list('post__competitor__name', flat=True).distinct()
+        )
 
 
 class CompetitorSerializer(serializers.ModelSerializer):
+    post_count = serializers.IntegerField(read_only=True, default=0)
+    lead_count = serializers.IntegerField(read_only=True, default=0)
+
     class Meta:
         model = Competitor
-        fields = ['id', 'name', 'linkedin_url']
+        fields = ['id', 'name', 'linkedin_url', 'post_count', 'lead_count']
+
+
+class PostSerializer(serializers.ModelSerializer):
+    competitor_name = serializers.ReadOnlyField(source='competitor.name')
+    lead_count = serializers.IntegerField(read_only=True, default=0)
+
+    class Meta:
+        model = Post
+        fields = ['id', 'post_id', 'competitor', 'competitor_name', 'content', 'url',
+                  'created_at', 'likes_count', 'comments_count', 'shares_count', 'images',
+                  'lead_count']
+
+
+class PostCommentSerializer(serializers.ModelSerializer):
+    lead_name = serializers.ReadOnlyField(source='lead.full_name')
+    lead_picture = serializers.ReadOnlyField(source='lead.picture_url')
+    lead_headline = serializers.ReadOnlyField(source='lead.headline')
+    lead_linkedin = serializers.ReadOnlyField(source='lead.linkedin_profile')
+    lead_id = serializers.ReadOnlyField(source='lead.id')
+
+    class Meta:
+        model = Comment
+        fields = ['id', 'comment_text', 'comment_url', 'commented_at',
+                  'lead_id', 'lead_name', 'lead_picture', 'lead_headline', 'lead_linkedin']
+
+
+class PostWithCommentsSerializer(serializers.ModelSerializer):
+    competitor_name = serializers.ReadOnlyField(source='competitor.name')
+    post_comments = PostCommentSerializer(source='comment_set', many=True, read_only=True)
+
+    class Meta:
+        model = Post
+        fields = ['id', 'post_id', 'competitor', 'competitor_name', 'content', 'url',
+                  'created_at', 'likes_count', 'comments_count', 'shares_count', 'images',
+                  'post_comments']

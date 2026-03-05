@@ -1,5 +1,8 @@
+import json
 import logging
+import time
 from datetime import datetime
+from pathlib import Path
 
 from django.conf import settings
 from django.utils import timezone
@@ -10,6 +13,20 @@ from .models import Competitor, Post, Lead, Comment
 logger = logging.getLogger(__name__)
 
 APIFY_ACTOR_ID = 'A3cAPGpwBEG8RJwse'
+APIFY_ENRICHMENT_ACTOR_ID = '2SyF0bVxmgGr8IVCZ'
+
+# Maps Lead model field -> Apify enrichment API key
+ENRICHMENT_FIELD_MAP = {
+    'full_name': 'fullName',
+    'headline': 'headline',
+    'company': 'companyName',
+    'job_title': 'jobTitle',
+    'email': 'email',
+    'followers': 'followers',
+    'connections': 'connections',
+    'company_website': 'companyWebsite',
+    'country': 'addressCountryOnly',
+}
 
 
 def get_apify_client():
@@ -38,11 +55,11 @@ def scrape_linkedin_posts(linkedin_url, max_posts, max_comments):
     return list(client.dataset(run["defaultDatasetId"]).iterate_items())
 
 
-def fetch_and_process_leads(competitor_id):
+def fetch_and_process_leads(competitor_id, max_posts=5, max_comments=10):
     competitor = Competitor.objects.get(id=competitor_id)
 
     logger.info(f"Starting Apify run for competitor: {competitor.name}")
-    items = scrape_linkedin_posts(competitor.linkedin_url, 5, 10)
+    items = scrape_linkedin_posts(competitor.linkedin_url, max_posts, max_comments)
 
     stats = {"posts": 0, "leads": 0, "comments": 0}
 
@@ -85,7 +102,7 @@ def save_post(competitor, item):
         defaults={
             "competitor": competitor,
             "content": (item.get("content") or "")[:5000],
-            "url": item.get("url", ""),
+            "url": item.get("linkedinUrl") or item.get("url", ""),
             "created_at": created_at or timezone.now(),
             "likes_count": engagement.get("likes", 0),
             "comments_count": engagement.get("comments", 0),
@@ -135,6 +152,50 @@ def parse_date(date_str):
         return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
     except (ValueError, TypeError):
         return None
+
+
+def enrich_lead(lead_id):
+    """Enrich a lead using mock Apify data.
+
+    The real Apify enrichment actor (2SyF0bVxmgGr8IVCZ) requires a paid API key.
+    Instead, we load pre-saved mock responses for 5 LinkedIn profiles from
+    backend/_mocks/mocks-enrich-profiles-response.json.
+    """
+    lead = Lead.objects.get(id=lead_id)
+
+    if not lead.linkedin_profile:
+        raise ValueError("Lead has no LinkedIn profile URL.")
+
+    # Load mock enrichment data instead of calling the paid Apify API
+    mock_file = Path(__file__).resolve().parent.parent / "_mocks" / "mocks-enrich-profiles-response.json"
+    with open(mock_file, "r") as f:
+        mock_profiles = json.load(f)
+
+    # Normalize URL for matching: lowercase, strip trailing slash
+    normalize = lambda url: url.rstrip("/").lower()
+    lead_url = normalize(lead.linkedin_profile)
+
+    data = None
+    for profile in mock_profiles:
+        if normalize(profile.get("linkedinUrl", "")) == lead_url:
+            data = profile
+            break
+
+    if data is None:
+        raise ValueError(
+            f"Profile '{lead.linkedin_profile}' is not in the mock data. "
+            "Real enrichment via Apify requires a paid plan."
+        )
+
+    # Simulate API latency
+    time.sleep(3)
+
+    for model_field, api_key in ENRICHMENT_FIELD_MAP.items():
+        value = data.get(api_key)
+        if value:
+            setattr(lead, model_field, value)
+    lead.save()
+    return lead
 
 
 def save_comment(lead_obj, post_obj, comment_data):
