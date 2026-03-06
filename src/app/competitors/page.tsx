@@ -639,15 +639,6 @@ export default function CompetitorsPage() {
               >
                 Cancel
               </button>
-              <button
-                onClick={() => {
-                  setScrapingId(scrapeConfigFor.id);
-                  setTimeout(() => setScrapingId(null), 5000);
-                }}
-                className="rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-accent hover:bg-accent/20 hover:border-accent/60 transition-all"
-              >
-                Preview animation
-              </button>
             </div>
           </div>
         ) : null}
@@ -806,15 +797,6 @@ export default function CompetitorsPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                 </svg>
                 Search with AI
-              </button>
-              <button
-                onClick={() => {
-                  setDiscovering(true);
-                  setTimeout(() => setDiscovering(false), 5000);
-                }}
-                className="rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-accent hover:bg-accent/20 hover:border-accent/60 transition-all"
-              >
-                Preview animation
               </button>
             </div>
 

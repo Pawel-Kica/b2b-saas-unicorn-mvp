@@ -72,8 +72,10 @@ const selectBase =
   + ` bg-[url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' viewBox='0 0 24 24' stroke='%23999' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")]`;
 
 
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+function nowStr() {
+  const d = new Date();
+  const pad = (n: number) => n < 10 ? `0${n}` : `${n}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 /* ── Reusable styled audio player ── */
@@ -140,7 +142,7 @@ export default function OutreachPage() {
   // Add form state
   const [newMethod, setNewMethod] = useState("email");
   const [newStatus, setNewStatus] = useState<Outreach["status"]>("pending");
-  const [newDate, setNewDate] = useState(todayStr);
+  const [newDate, setNewDate] = useState(nowStr);
   const [newScript, setNewScript] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -208,7 +210,7 @@ export default function OutreachPage() {
     setExpandedLoading(true);
     setNewMethod("email");
     setNewStatus("pending");
-    setNewDate(todayStr());
+    setNewDate(nowStr());
     setNewScript("");
     setExpandedRecordId(null);
     setVoicePreview(null);
@@ -235,7 +237,7 @@ export default function OutreachPage() {
       });
       const lead = await getLead(expandedLeadId);
       setExpandedRecords(lead.outreach_records);
-      setNewDate(todayStr());
+      setNewDate(nowStr());
       setNewScript("");
       load(search || undefined, ordering, true);
     } catch {
@@ -273,7 +275,7 @@ export default function OutreachPage() {
       });
       const lead = await getLead(expandedLeadId);
       setExpandedRecords(lead.outreach_records);
-      setNewDate(todayStr());
+      setNewDate(nowStr());
       setVoicePreview(null);
       load(search || undefined, ordering, true);
     } catch {
@@ -554,7 +556,7 @@ export default function OutreachPage() {
                       {item.outreach_count}
                     </td>
                     <td className="px-4 py-3 text-muted whitespace-nowrap">
-                      {item.last_outreach_date}
+                      {item.last_outreach_date ? item.last_outreach_date.replace("T", " ").slice(0, 16) : ""}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button
@@ -590,6 +592,7 @@ export default function OutreachPage() {
                                           <DatePicker
                                             value={r.date}
                                             onChange={(v) => changeDate(r, v)}
+                                            showTime
                                           />
                                           <Badge label={METHOD_LABEL[r.method] || r.method} variant={METHOD_VARIANT[r.method] || "gray"} />
                                           <select
@@ -656,7 +659,16 @@ export default function OutreachPage() {
                                 <DatePicker
                                   value={newDate}
                                   onChange={setNewDate}
+                                  showTime
                                 />
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setNewDate(nowStr()); }}
+                                  className="inline-flex items-center rounded-full border border-border bg-surface h-[22px] px-2 text-xs font-medium text-accent hover:bg-surface-hover transition-colors"
+                                  title="Set to now"
+                                >
+                                  Now
+                                </button>
                                 <select
                                   value={newMethod}
                                   onChange={(e) => { setNewMethod(e.target.value); setNewScript(""); setVoicePreview(null); setVoiceError(""); }}

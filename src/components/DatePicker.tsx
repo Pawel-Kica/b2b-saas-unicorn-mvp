@@ -26,19 +26,37 @@ function toDateStr(y: number, m: number, d: number) {
 }
 
 function parseDate(s: string) {
-  const [y, m, d] = s.split("-").map(Number);
+  const datePart = s.slice(0, 10);
+  const [y, m, d] = datePart.split("-").map(Number);
   return { year: y, month: m - 1, day: d };
 }
 
+function parseTime(s: string): { hour: number; minute: number } {
+  // Supports "YYYY-MM-DDTHH:MM" or "YYYY-MM-DD HH:MM" or just "YYYY-MM-DD"
+  const match = s.match(/[T ](\d{2}):(\d{2})/);
+  if (match) return { hour: Number(match[1]), minute: Number(match[2]) };
+  return { hour: 0, minute: 0 };
+}
+
+function formatDisplay(value: string, showTime: boolean): string {
+  if (!value) return showTime ? "Pick date & time" : "Pick date";
+  const datePart = value.slice(0, 10);
+  if (!showTime) return datePart;
+  const { hour, minute } = parseTime(value);
+  return `${datePart} ${pad(hour)}:${pad(minute)}`;
+}
+
 interface DatePickerProps {
-  value: string; // "YYYY-MM-DD"
+  value: string; // "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM"
   onChange: (value: string) => void;
+  showTime?: boolean;
   className?: string;
 }
 
-export default function DatePicker({ value, onChange, className }: DatePickerProps) {
+export default function DatePicker({ value, onChange, showTime, className }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const parsed = value ? parseDate(value) : null;
+  const time = value && showTime ? parseTime(value) : { hour: 0, minute: 0 };
   const [viewYear, setViewYear] = useState(parsed?.year ?? new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(parsed?.month ?? new Date().getMonth());
   const ref = useRef<HTMLDivElement>(null);
@@ -70,7 +88,7 @@ export default function DatePicker({ value, onChange, className }: DatePickerPro
     const trigger = ref.current;
     const triggerRect = trigger.getBoundingClientRect();
     const spaceBelow = window.innerHeight - triggerRect.bottom;
-    if (spaceBelow < 320) {
+    if (spaceBelow < 360) {
       popover.style.bottom = "100%";
       popover.style.top = "auto";
       popover.style.marginBottom = "4px";
@@ -80,6 +98,11 @@ export default function DatePicker({ value, onChange, className }: DatePickerPro
       popover.style.marginTop = "4px";
     }
   }, [open]);
+
+  function buildValue(dateStr: string, h: number, m: number) {
+    if (!showTime) return dateStr;
+    return `${dateStr}T${pad(h)}:${pad(m)}`;
+  }
 
   function prevMonth() {
     if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1); }
@@ -92,7 +115,20 @@ export default function DatePicker({ value, onChange, className }: DatePickerPro
   }
 
   function selectDay(day: number) {
-    onChange(toDateStr(viewYear, viewMonth, day));
+    const dateStr = toDateStr(viewYear, viewMonth, day);
+    onChange(buildValue(dateStr, time.hour, time.minute));
+    if (!showTime) setOpen(false);
+  }
+
+  function handleTimeChange(h: number, m: number) {
+    const datePart = value ? value.slice(0, 10) : toDateStr(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+    onChange(buildValue(datePart, h, m));
+  }
+
+  function handleNow() {
+    const now = new Date();
+    const dateStr = toDateStr(now.getFullYear(), now.getMonth(), now.getDate());
+    onChange(buildValue(dateStr, now.getHours(), now.getMinutes()));
     setOpen(false);
   }
 
@@ -102,7 +138,7 @@ export default function DatePicker({ value, onChange, className }: DatePickerPro
   for (let i = 0; i < startDay; i++) cells.push(null);
   for (let d = 1; d <= days; d++) cells.push(d);
 
-  const selectedStr = value;
+  const selectedDateStr = value ? value.slice(0, 10) : "";
   const todayStr = new Date().toISOString().slice(0, 10);
 
   return (
@@ -112,7 +148,7 @@ export default function DatePicker({ value, onChange, className }: DatePickerPro
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface h-[22px] px-2 text-xs font-medium text-foreground tabular-nums leading-none focus:outline-none focus:ring-2 focus:ring-accent/50 transition-colors hover:bg-surface-hover cursor-pointer"
       >
-        {value || "Pick date"}
+        {formatDisplay(value, !!showTime)}
         <svg className="h-3 w-3 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
         </svg>
@@ -163,7 +199,7 @@ export default function DatePicker({ value, onChange, className }: DatePickerPro
             {cells.map((day, i) => {
               if (day === null) return <div key={`e${i}`} />;
               const dateStr = toDateStr(viewYear, viewMonth, day);
-              const isSelected = dateStr === selectedStr;
+              const isSelected = dateStr === selectedDateStr;
               const isToday = dateStr === todayStr;
               return (
                 <button
@@ -184,13 +220,39 @@ export default function DatePicker({ value, onChange, className }: DatePickerPro
             })}
           </div>
 
-          {/* Today shortcut */}
+          {/* Time picker */}
+          {showTime && (
+            <div className="mt-2 flex items-center gap-2 border-t border-border pt-2">
+              <svg className="h-3.5 w-3.5 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <input
+                type="number"
+                min={0}
+                max={23}
+                value={pad(time.hour)}
+                onChange={(e) => handleTimeChange(Math.min(23, Math.max(0, Number(e.target.value))), time.minute)}
+                className="w-10 rounded-md border border-border bg-background px-1.5 py-1 text-center text-xs text-foreground tabular-nums focus:outline-none focus:ring-2 focus:ring-accent/50"
+              />
+              <span className="text-xs text-muted font-bold">:</span>
+              <input
+                type="number"
+                min={0}
+                max={59}
+                value={pad(time.minute)}
+                onChange={(e) => handleTimeChange(time.hour, Math.min(59, Math.max(0, Number(e.target.value))))}
+                className="w-10 rounded-md border border-border bg-background px-1.5 py-1 text-center text-xs text-foreground tabular-nums focus:outline-none focus:ring-2 focus:ring-accent/50"
+              />
+            </div>
+          )}
+
+          {/* Today / Now shortcut */}
           <button
             type="button"
-            onClick={() => { onChange(todayStr); setOpen(false); }}
+            onClick={showTime ? handleNow : () => { onChange(todayStr); setOpen(false); }}
             className="mt-2 w-full rounded-md py-1 text-xs font-medium text-accent hover:bg-accent/10 transition-colors"
           >
-            Today
+            {showTime ? "Now" : "Today"}
           </button>
         </div>
       )}
