@@ -40,11 +40,11 @@ OUTREACH_STATUS_CHOICES = [
 
 class Lead(models.Model):
     full_name = models.CharField(max_length=255)
-    linkedin_profile = models.URLField(unique=True)
+    linkedin_profile = models.URLField(max_length=500, unique=True)
     company = models.CharField(max_length=255, null=True, blank=True)
     role = models.CharField(max_length=255, null=True, blank=True)
     headline = models.CharField(max_length=500, null=True, blank=True)
-    picture_url = models.URLField(null=True, blank=True)
+    picture_url = models.URLField(max_length=500, null=True, blank=True)
     posts = models.ManyToManyField(Post, through='Comment')
 
     # Enrichment data
@@ -52,7 +52,7 @@ class Lead(models.Model):
     job_title = models.CharField(max_length=255, null=True, blank=True)
     followers = models.IntegerField(null=True, blank=True)
     connections = models.IntegerField(null=True, blank=True)
-    company_website = models.URLField(null=True, blank=True)
+    company_website = models.URLField(max_length=500, null=True, blank=True)
     country = models.CharField(max_length=255, null=True, blank=True)
 
     def __str__(self):
@@ -64,7 +64,7 @@ class Comment(models.Model):
     lead = models.ForeignKey(Lead, on_delete=models.CASCADE)
     post = models.ForeignKey(Post, on_delete=models.CASCADE)
     comment_text = models.TextField(null=True, blank=True)
-    comment_url = models.URLField(null=True, blank=True)
+    comment_url = models.URLField(max_length=500, null=True, blank=True)
     commented_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
