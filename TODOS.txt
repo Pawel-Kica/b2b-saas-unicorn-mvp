@@ -1,0 +1,27 @@
+1. Why?
+   Super excited to work together, and I wanted to show that I can deliver things fast.
+
+2. Overview
+   LinkedIn profile posts and comments comment scraper that allows you to gather leads.
+
+2.1. -> DASHBOARD
+
+3. Competitors
+- see competitors
+- use AI to search for competitors
+- see OPEN AI PLATFORM VIEW
+
+2. Scrape posts
+- select number of posts
+- see posts, comments, leads, images
+
+3. See comments<>leads
+- see all the data
+- enrich to get email!
+
+- see the profile
+
+Show scrapers
+
+- https://console.apify.com/actors/2SyF0bVxmgGr8IVCZ/input
+- https://console.apify.com/actors/A3cAPGpwBEG8RJwse/input
