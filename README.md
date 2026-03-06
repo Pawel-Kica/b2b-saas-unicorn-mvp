@@ -48,3 +48,13 @@ docker compose down
 ```
 
 Add `-v` to also wipe the database volume: `docker compose down -v`
+
+## Resources
+
+### Scrapers (Apify)
+
+- [LinkedIn scraper](https://console.apify.com/actors/A3cAPGpwBEG8RJwse/input) — Apify actor input console
+
+### Repository
+
+- [GitHub — b2b-saas-unicorn-mvp](https://github.com/Pawel-Kica/b2b-saas-unicorn-mvp)
