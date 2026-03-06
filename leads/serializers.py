@@ -61,7 +61,7 @@ class CompetitorSerializer(serializers.ModelSerializer):
 class OutreachListSerializer(serializers.ModelSerializer):
     last_outreach_status = serializers.CharField(read_only=True)
     last_outreach_method = serializers.CharField(read_only=True)
-    last_outreach_date = serializers.DateField(read_only=True)
+    last_outreach_date = serializers.DateTimeField(read_only=True)
     outreach_count = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:

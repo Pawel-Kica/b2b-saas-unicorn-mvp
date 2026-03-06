@@ -73,7 +73,7 @@ class Outreach(models.Model):
     lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='outreach_records')
     method = models.CharField(max_length=10, choices=OUTREACH_METHOD_CHOICES)
     status = models.CharField(max_length=15, choices=OUTREACH_STATUS_CHOICES, default='pending')
-    date = models.DateField()
+    date = models.DateTimeField()
     notes = models.TextField(blank=True, default='')
     audio_file = models.FileField(upload_to='voice_notes/', blank=True, default='')
     script_text = models.TextField(blank=True, default='')
