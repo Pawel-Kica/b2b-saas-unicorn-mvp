@@ -9,6 +9,7 @@ import Spinner from "@/components/Spinner";
 import EmptyState from "@/components/EmptyState";
 import Badge from "@/components/Badge";
 import LeadProfileModal from "@/components/LeadProfileModal";
+import DatePicker from "@/components/DatePicker";
 
 type SortField = "full_name" | "last_outreach_date";
 
@@ -70,8 +71,6 @@ const selectBase =
   `${pillBase} border px-2 leading-none focus:outline-none focus:ring-2 focus:ring-accent/50 transition-colors cursor-pointer appearance-none bg-[length:12px_12px] bg-[right_4px_center] bg-no-repeat pr-5`
   + ` bg-[url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' viewBox='0 0 24 24' stroke='%23999' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")]`;
 
-const plainSelect =
-  `${pillBase} border border-border bg-surface px-2 leading-none focus:outline-none focus:ring-2 focus:ring-accent/50`;
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -162,14 +161,14 @@ export default function OutreachPage() {
 
   const ordering = `${sortDir === "desc" ? "-" : ""}${sortField}`;
 
-  const load = useCallback(async (q?: string, ord?: string) => {
-    setLoading(true);
+  const load = useCallback(async (q?: string, ord?: string, silent?: boolean) => {
+    if (!silent) setLoading(true);
     try {
       setItems(await getOutreaches({ search: q, ordering: ord }));
     } catch {
       /* ignore */
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -238,7 +237,7 @@ export default function OutreachPage() {
       setExpandedRecords(lead.outreach_records);
       setNewDate(todayStr());
       setNewScript("");
-      load(search || undefined, ordering);
+      load(search || undefined, ordering, true);
     } catch {
       /* ignore */
     } finally {
@@ -276,7 +275,7 @@ export default function OutreachPage() {
       setExpandedRecords(lead.outreach_records);
       setNewDate(todayStr());
       setVoicePreview(null);
-      load(search || undefined, ordering);
+      load(search || undefined, ordering, true);
     } catch {
       /* ignore */
     } finally {
@@ -290,7 +289,7 @@ export default function OutreachPage() {
     setExpandedRecords((recs) => recs.map((x) => (x.id === r.id ? { ...x, status: newSt } : x)));
     try {
       await updateOutreach(expandedLeadId, r.id, { status: newSt });
-      load(search || undefined, ordering);
+      load(search || undefined, ordering, true);
     } catch {
       setExpandedRecords((recs) => recs.map((x) => (x.id === r.id ? { ...x, status: prev } : x)));
     }
@@ -302,7 +301,7 @@ export default function OutreachPage() {
     setExpandedRecords((recs) => recs.map((x) => (x.id === r.id ? { ...x, date: newDt } : x)));
     try {
       await updateOutreach(expandedLeadId, r.id, { date: newDt });
-      load(search || undefined, ordering);
+      load(search || undefined, ordering, true);
     } catch {
       setExpandedRecords((recs) => recs.map((x) => (x.id === r.id ? { ...x, date: prev } : x)));
     }
@@ -315,7 +314,7 @@ export default function OutreachPage() {
       await deleteOutreach(expandedLeadId, outreachId);
       const lead = await getLead(expandedLeadId);
       setExpandedRecords(lead.outreach_records);
-      load(search || undefined, ordering);
+      load(search || undefined, ordering, true);
     } catch {
       /* ignore */
     } finally {
@@ -336,6 +335,7 @@ export default function OutreachPage() {
           {
             id: matched.id,
             full_name: matched.full_name,
+            linkedin_profile: matched.linkedin_profile,
             picture_url: matched.picture_url,
             last_outreach_date: "",
             last_outreach_status: "pending",
@@ -587,15 +587,10 @@ export default function OutreachPage() {
                                     return (
                                       <div key={r.id} className="rounded-lg border border-border overflow-hidden">
                                         <div className="flex items-center gap-2 p-2.5">
-                                          <div className="relative" onClick={(e) => e.stopPropagation()}>
-                                            <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-foreground tabular-nums">{r.date}</span>
-                                            <input
-                                              type="date"
-                                              value={r.date}
-                                              onChange={(e) => changeDate(r, e.target.value)}
-                                              className={`${plainSelect} w-[6.5rem] text-transparent`}
-                                            />
-                                          </div>
+                                          <DatePicker
+                                            value={r.date}
+                                            onChange={(v) => changeDate(r, v)}
+                                          />
                                           <Badge label={METHOD_LABEL[r.method] || r.method} variant={METHOD_VARIANT[r.method] || "gray"} />
                                           <select
                                             value={r.status}
@@ -658,15 +653,10 @@ export default function OutreachPage() {
                             <div>
                               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted mb-2">New Outreach</h4>
                               <div className="flex items-center gap-2">
-                                <div className="relative" onClick={(e) => e.stopPropagation()}>
-                                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-foreground tabular-nums">{newDate}</span>
-                                  <input
-                                    type="date"
-                                    value={newDate}
-                                    onChange={(e) => setNewDate(e.target.value)}
-                                    className={`${plainSelect} w-[6.5rem] text-transparent`}
-                                  />
-                                </div>
+                                <DatePicker
+                                  value={newDate}
+                                  onChange={setNewDate}
+                                />
                                 <select
                                   value={newMethod}
                                   onChange={(e) => { setNewMethod(e.target.value); setNewScript(""); setVoicePreview(null); setVoiceError(""); }}
