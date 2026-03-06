@@ -1,12 +1,22 @@
 from rest_framework import serializers
-from .models import Lead, Comment, Post, Competitor, Outreach
+from .models import Lead, Comment, Post, Competitor, Outreach, SiteSettings
 
 
 class OutreachSerializer(serializers.ModelSerializer):
+    audio_url = serializers.SerializerMethodField()
+
     class Meta:
         model = Outreach
-        fields = ['id', 'lead', 'method', 'status', 'date', 'notes', 'created_at']
-        read_only_fields = ['id', 'lead', 'created_at']
+        fields = ['id', 'lead', 'method', 'status', 'date', 'notes', 'script_text', 'audio_url', 'created_at']
+        read_only_fields = ['id', 'lead', 'created_at', 'audio_url']
+
+    def get_audio_url(self, obj):
+        if obj.audio_file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.audio_file.url)
+            return obj.audio_file.url
+        return None
 
 
 class CommentSerializer(serializers.ModelSerializer):
@@ -96,3 +106,9 @@ class PostWithCommentsSerializer(serializers.ModelSerializer):
         fields = ['id', 'post_id', 'competitor', 'competitor_name', 'content', 'url',
                   'created_at', 'likes_count', 'comments_count', 'shares_count', 'images',
                   'post_comments']
+
+
+class SiteSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SiteSettings
+        fields = ['niche', 'about_me', 'niche_description']

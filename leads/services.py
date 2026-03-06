@@ -1,14 +1,18 @@
 import json
 import logging
+import re
 import time
 from datetime import datetime
 from pathlib import Path
 
+import requests as http_requests
 from django.conf import settings
+from django.core.files.base import ContentFile
 from django.utils import timezone
 from apify_client import ApifyClient
+from openai import OpenAI
 
-from .models import Competitor, Post, Lead, Comment
+from .models import Competitor, Post, Lead, Comment, SiteSettings
 
 logger = logging.getLogger(__name__)
 
@@ -198,6 +202,90 @@ def enrich_lead(lead_id):
     return lead
 
 
+def discover_competitors(niche, existing_competitors, prompt=''):
+    api_key = settings.OPENAI_API_KEY
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY is not configured. Set it in your .env file.")
+
+    client = OpenAI(api_key=api_key)
+
+    existing_list = "\n".join(
+        f"- {c['name']} ({c['linkedin_url']})" for c in existing_competitors
+    ) if existing_competitors else "None yet."
+
+    system_msg = (
+        "You are a B2B lead generation strategist. Your job is to suggest LinkedIn "
+        "INDIVIDUAL profiles (thought leaders, creators, influencers) whose post "
+        "commenters are likely B2B buyers and decision-makers in a given niche.\n\n"
+        "CONTEXT: The user runs a tool that scrapes LinkedIn post comments from the "
+        "profiles you suggest. The commenters become warm sales leads. This means the "
+        "value of a profile is NOT the person themselves — it is the QUALITY and "
+        "QUANTITY of people who comment on their posts.\n\n"
+        "SELECTION CRITERIA (all must apply):\n"
+        "1. INDIVIDUALS ONLY — personal profiles (linkedin.com/in/...). Never suggest "
+        "company pages (linkedin.com/company/...).\n"
+        "2. LARGE FOLLOWING — the person should be a well-known voice in their niche "
+        "with a substantial LinkedIn audience (typically 10,000+ followers).\n"
+        "3. HIGH ENGAGEMENT — they consistently get 10+ comments per post. Prioritize "
+        "people known for sparking discussion, not just likes.\n"
+        "4. COMMENTER QUALITY — their comment sections should attract senior "
+        "professionals: VPs, Directors, Founders, Heads of departments — people with "
+        "buying authority. Avoid profiles where comments are mostly from junior "
+        "marketers, students, or engagement-pod participants.\n"
+        "5. ACTIVE POSTER — they post at least weekly on LinkedIn. Dormant accounts "
+        "are useless for scraping recent comments.\n\n"
+        "Return 3-5 suggestions. For each, provide:\n"
+        "- name: The person's full name as it appears on LinkedIn.\n"
+        "- linkedin_url: Their personal profile URL (must start with "
+        "https://www.linkedin.com/in/).\n"
+        "- description: One sentence on what topics they post about, then one sentence "
+        "on why their comment section is valuable for the user's niche.\n\n"
+        "Do NOT suggest any profile already in the existing list below."
+    )
+
+    user_msg = f"Niche: {niche}\n\nExisting competitors (do not repeat these):\n{existing_list}"
+    if prompt:
+        user_msg += f"\n\nAdditional context: {prompt}"
+
+    response = client.chat.completions.create(
+        model="gpt-5.2",
+        messages=[
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_msg},
+        ],
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "competitor_suggestions",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "competitors": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {"type": "string"},
+                                    "linkedin_url": {"type": "string"},
+                                    "description": {"type": "string"},
+                                },
+                                "required": ["name", "linkedin_url", "description"],
+                                "additionalProperties": False,
+                            },
+                        }
+                    },
+                    "required": ["competitors"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+    )
+
+    data = json.loads(response.choices[0].message.content)
+    return data["competitors"]
+
+
 def save_comment(lead_obj, post_obj, comment_data):
     external_id = comment_data.get("id", "")
     if not external_id:
@@ -214,3 +302,120 @@ def save_comment(lead_obj, post_obj, comment_data):
         },
     )
     return comment
+
+
+# ---------------------------------------------------------------------------
+# Voice Outreach (ElevenLabs TTS)
+# ---------------------------------------------------------------------------
+
+def generate_voice_script(lead, site_settings):
+    api_key = settings.OPENAI_API_KEY
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY is not configured. Set it in your .env file.")
+
+    lead_first_name = (lead.full_name or "").split()[0] if lead.full_name else "there"
+    lead_role = lead.role or lead.headline or "professional"
+    lead_company = lead.company or ""
+
+    about_me = site_settings.about_me or ""
+    niche = site_settings.niche or "your industry"
+    niche_desc = site_settings.niche_description or ""
+
+    client = OpenAI(api_key=api_key)
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You write short, personalized voice note scripts for cold outreach. "
+                    "The script will be read by ElevenLabs Eleven v3 TTS which natively handles "
+                    "emotions and delivery from inline tags.\n\n"
+                    "AVAILABLE TAGS (organized by purpose):\n"
+                    "Trust & Authority: [matter-of-fact], [serious], [calm], [professional], "
+                    "[reassuring], [grounded], [confident]\n"
+                    "Energy & Hype: [excited], [bright], [lighthearted], [warmly], [cheerful], "
+                    "[enthusiastic], [friendly]\n"
+                    "Urgency & Emphasis: [emphasized], [urgent], [with emphasis], [deliberate], "
+                    "[rapid-fire], [dramatic tone]\n"
+                    "Conversational Hooks: [clears throat], [soft chuckle], [pause], [reflective], "
+                    "[whispering], [conversational tone], [thoughtful]\n"
+                    "Empathy & Objection Handling: [gently], [understanding], [hesitates], [sighs], "
+                    "[softly], [sincere]\n\n"
+                    "RULES:\n"
+                    "- Keep it under 15 seconds when spoken (~40 words).\n"
+                    "- Use 2-4 tags per script. Place them before the phrase they apply to.\n"
+                    "- Mix tag categories for natural delivery — e.g. start with a conversational "
+                    "hook, build with energy, close with trust.\n"
+                    "- Sound like a real voice message from a friend, not a sales pitch.\n"
+                    "- Do NOT use markdown, quotes, or any formatting besides the emotion tags."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Write a voice note script for this lead:\n"
+                    f"- First name: {lead_first_name}\n"
+                    f"- Role: {lead_role}\n"
+                    f"- Company: {lead_company or 'unknown'}\n\n"
+                    f"About the sender:\n{about_me}\n\n"
+                    f"Niche: {niche}\n"
+                    f"Context: {niche_desc}"
+                ),
+            },
+        ],
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "voice_script",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "script": {"type": "string", "description": "The voice note script with Eleven v3 emotion tags"},
+                    },
+                    "required": ["script"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+    )
+
+    data = json.loads(response.choices[0].message.content)
+    return data["script"]
+
+
+def generate_voice_audio(script_text):
+    api_key = settings.ELEVENLABS_API_KEY
+    voice_id = settings.ELEVENLABS_VOICE_ID
+    if not api_key or not voice_id:
+        raise ValueError("ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID must be set in .env")
+
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+    resp = http_requests.post(
+        url,
+        headers={"xi-api-key": api_key, "Accept": "audio/mpeg", "Content-Type": "application/json"},
+        json={
+            "text": script_text,
+            "model_id": "eleven_v3",
+            "voice_settings": {
+                "speed": 1.25,
+            },
+        },
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.content
+
+
+def create_voice_outreach(lead_id):
+    from .models import Outreach  # avoid circular at module level
+
+    lead = Lead.objects.get(id=lead_id)
+    site_settings = SiteSettings.load()
+
+    script_text = generate_voice_script(lead, site_settings)
+    audio_bytes = generate_voice_audio(script_text)
+
+    filename = f"voice_{lead_id}_{int(time.time())}.mp3"
+    return {"audio_file": ContentFile(audio_bytes, name=filename), "script_text": script_text}

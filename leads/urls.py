@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import LeadViewSet, CompetitorViewSet, PostViewSet, OutreachViewSet, OutreachListViewSet, dashboard_stats
+from .views import LeadViewSet, CompetitorViewSet, PostViewSet, OutreachViewSet, OutreachListViewSet, dashboard_stats, settings_view
 
 router = DefaultRouter()
 router.register(r'leads', LeadViewSet, basename='lead')
@@ -13,6 +13,7 @@ outreach_detail = OutreachViewSet.as_view({'patch': 'partial_update', 'delete': 
 
 urlpatterns = [
     path('dashboard/', dashboard_stats, name='dashboard-stats'),
+    path('settings/', settings_view, name='site-settings'),
     path('leads/<int:lead_pk>/outreach/', outreach_list, name='lead-outreach-list'),
     path('leads/<int:lead_pk>/outreach/<int:pk>/', outreach_detail, name='lead-outreach-detail'),
     path('', include(router.urls)),

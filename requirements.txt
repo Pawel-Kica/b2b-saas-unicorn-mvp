@@ -4,3 +4,4 @@ django-cors-headers>=4.0
 apify-client>=1.6.0
 python-dotenv>=1.0.0
 requests>=2.31
+openai>=1.0

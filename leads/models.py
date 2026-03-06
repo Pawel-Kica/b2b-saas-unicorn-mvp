@@ -27,6 +27,7 @@ class Post(models.Model):
 OUTREACH_METHOD_CHOICES = [
     ('email', 'Email'),
     ('linkedin', 'LinkedIn'),
+    ('voice', 'Voice'),
 ]
 
 OUTREACH_STATUS_CHOICES = [
@@ -74,6 +75,8 @@ class Outreach(models.Model):
     status = models.CharField(max_length=15, choices=OUTREACH_STATUS_CHOICES, default='pending')
     date = models.DateField()
     notes = models.TextField(blank=True, default='')
+    audio_file = models.FileField(upload_to='voice_notes/', blank=True, default='')
+    script_text = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -81,3 +84,22 @@ class Outreach(models.Model):
 
     def __str__(self):
         return f"{self.method} to {self.lead.full_name} on {self.date}"
+
+
+class SiteSettings(models.Model):
+    niche = models.CharField(max_length=500, blank=True, default='')
+    about_me = models.TextField(blank=True, default='')
+    niche_description = models.TextField(blank=True, default='')
+
+    class Meta:
+        verbose_name = 'Site Settings'
+        verbose_name_plural = 'Site Settings'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

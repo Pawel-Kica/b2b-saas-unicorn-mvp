@@ -5,9 +5,20 @@ from rest_framework.decorators import action, api_view
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.response import Response
 
-from .models import Lead, Competitor, Post, Outreach
-from .serializers import LeadSerializer, CompetitorSerializer, PostSerializer, PostWithCommentsSerializer, OutreachSerializer, OutreachListSerializer
-from .services import fetch_and_process_leads, enrich_lead
+from .models import Lead, Competitor, Post, Outreach, SiteSettings
+from .serializers import LeadSerializer, CompetitorSerializer, PostSerializer, PostWithCommentsSerializer, OutreachSerializer, OutreachListSerializer, SiteSettingsSerializer
+from .services import fetch_and_process_leads, enrich_lead, discover_competitors, generate_voice_script, generate_voice_audio
+
+
+@api_view(['GET', 'PATCH'])
+def settings_view(request):
+    obj = SiteSettings.load()
+    if request.method == 'PATCH':
+        serializer = SiteSettingsSerializer(obj, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+    return Response(SiteSettingsSerializer(obj).data)
 
 
 @api_view(['GET'])
@@ -58,6 +69,25 @@ class LeadViewSet(viewsets.ModelViewSet):
             qs = qs.filter(comment__post__competitor__id=competitor).distinct()
         return qs
 
+    @action(detail=True, methods=['post'], url_path='voice_preview')
+    def voice_preview(self, request, pk=None):
+        import time
+        from django.core.files.base import ContentFile
+        from django.core.files.storage import default_storage
+        lead = self.get_object()
+        site_settings = SiteSettings.load()
+        try:
+            script_text = generate_voice_script(lead, site_settings)
+            audio_bytes = generate_voice_audio(script_text)
+            filename = f"voice_notes/voice_preview_{lead.id}_{int(time.time())}.mp3"
+            path = default_storage.save(filename, ContentFile(audio_bytes))
+            audio_url = request.build_absolute_uri(f'/media/{path}')
+            return Response({"script_text": script_text, "audio_url": audio_url, "audio_filename": path})
+        except ValueError as e:
+            return Response({"status": "error", "message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     @action(detail=True, methods=['post'])
     def enrich(self, request, pk=None):
         lead = self.get_object()
@@ -97,6 +127,36 @@ class CompetitorViewSet(viewsets.ModelViewSet):
         try:
             stats = fetch_and_process_leads(competitor.id, max_posts=max_posts, max_comments=max_comments)
             return Response({"status": "success", "stats": stats})
+        except ValueError as e:
+            return Response(
+                {"status": "error", "message": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            return Response(
+                {"status": "error", "message": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=False, methods=['post'])
+    def discover(self, request):
+        site_settings = SiteSettings.load()
+        if not site_settings.niche:
+            return Response(
+                {"status": "error", "message": "Set your niche in Settings before discovering competitors."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        existing = list(Competitor.objects.values('name', 'linkedin_url'))
+        prompt = request.data.get('prompt', '')
+
+        niche = site_settings.niche
+        if site_settings.niche_description:
+            niche += f" - {site_settings.niche_description}"
+
+        try:
+            suggestions = discover_competitors(niche, existing, prompt)
+            return Response(suggestions)
         except ValueError as e:
             return Response(
                 {"status": "error", "message": str(e)},
@@ -167,4 +227,23 @@ class OutreachViewSet(viewsets.ModelViewSet):
         return Outreach.objects.filter(lead_id=self.kwargs['lead_pk'])
 
     def perform_create(self, serializer):
-        serializer.save(lead_id=self.kwargs['lead_pk'])
+        instance = serializer.save(lead_id=self.kwargs['lead_pk'])
+        if instance.method == 'voice':
+            voice_audio = self.request.data.get('voice_audio_filename')
+            voice_script = self.request.data.get('voice_script_text')
+            if voice_audio and voice_script:
+                # Use pre-generated preview data
+                instance.audio_file.name = voice_audio
+                instance.script_text = voice_script
+                instance.save(update_fields=['audio_file', 'script_text'])
+            else:
+                # Generate fresh
+                from .services import create_voice_outreach
+                try:
+                    result = create_voice_outreach(instance.lead_id)
+                    instance.audio_file.save(result['audio_file'].name, result['audio_file'], save=False)
+                    instance.script_text = result['script_text']
+                    instance.save(update_fields=['audio_file', 'script_text'])
+                except Exception as e:
+                    instance.notes = f"Voice generation failed: {str(e)}"
+                    instance.save(update_fields=['notes'])
