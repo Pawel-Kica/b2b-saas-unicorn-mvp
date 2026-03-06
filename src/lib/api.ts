@@ -6,6 +6,8 @@ import type {
   Post,
   PostWithComments,
   FetchLeadsResponse,
+  SiteSettings,
+  SuggestedCompetitor,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
@@ -34,6 +36,18 @@ export interface DashboardStats {
 }
 
 export const getDashboardStats = () => request<DashboardStats>("/dashboard/");
+
+// Settings
+export const getSettings = () => request<SiteSettings>("/settings/");
+export const updateSettings = (data: Partial<SiteSettings>) =>
+  request<SiteSettings>("/settings/", { method: "PATCH", body: JSON.stringify(data) });
+
+// Discover competitors
+export const discoverCompetitors = (prompt?: string) =>
+  request<SuggestedCompetitor[]>("/competitors/discover/", {
+    method: "POST",
+    body: JSON.stringify({ prompt: prompt || "" }),
+  });
 
 // Competitors
 export const getCompetitors = (params?: { search?: string }) => {
@@ -73,8 +87,17 @@ export const enrichLead = (id: number) =>
 export const updateLead = (id: number, data: Partial<Lead>) =>
   request<Lead>(`/leads/${id}/`, { method: "PATCH", body: JSON.stringify(data) });
 
+// Voice preview
+export interface VoicePreview {
+  script_text: string;
+  audio_url: string;
+  audio_filename: string;
+}
+export const generateVoicePreview = (leadId: number) =>
+  request<VoicePreview>(`/leads/${leadId}/voice_preview/`, { method: "POST" });
+
 // Outreach
-export const createOutreach = (leadId: number, data: { method: string; status: string; date: string; notes?: string }) =>
+export const createOutreach = (leadId: number, data: { method: string; status: string; date: string; notes?: string; script_text?: string; voice_audio_filename?: string; voice_script_text?: string }) =>
   request<Outreach>(`/leads/${leadId}/outreach/`, { method: "POST", body: JSON.stringify(data) });
 export const updateOutreach = (leadId: number, outreachId: number, data: Partial<Outreach>) =>
   request<Outreach>(`/leads/${leadId}/outreach/${outreachId}/`, { method: "PATCH", body: JSON.stringify(data) });

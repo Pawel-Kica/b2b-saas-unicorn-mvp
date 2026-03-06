@@ -19,10 +19,12 @@ export interface Comment {
 export interface Outreach {
   id: number;
   lead: number;
-  method: "email" | "linkedin";
+  method: "email" | "linkedin" | "voice";
   status: "pending" | "no_reply" | "interested" | "not_interested";
   date: string;
   notes: string;
+  script_text: string;
+  audio_url: string | null;
   created_at: string;
 }
 
@@ -50,7 +52,7 @@ export interface OutreachListItem {
   linkedin_profile: string;
   picture_url: string | null;
   last_outreach_status: "pending" | "no_reply" | "interested" | "not_interested";
-  last_outreach_method: "email" | "linkedin";
+  last_outreach_method: "email" | "linkedin" | "voice";
   last_outreach_date: string;
   outreach_count: number;
 }
@@ -94,4 +96,16 @@ export interface PostComment {
 
 export interface PostWithComments extends Post {
   post_comments: PostComment[];
+}
+
+export interface SiteSettings {
+  niche: string;
+  about_me: string;
+  niche_description: string;
+}
+
+export interface SuggestedCompetitor {
+  name: string;
+  linkedin_url: string;
+  description: string;
 }

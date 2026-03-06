@@ -2,12 +2,12 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { getLead, enrichLead } from "@/lib/api";
 import type { Lead } from "@/lib/types";
 import Modal from "./Modal";
 import Spinner from "./Spinner";
 import Badge from "./Badge";
-import OutreachModal from "./OutreachModal";
 
 interface LeadProfileModalProps {
   leadId: number | null;
@@ -18,7 +18,6 @@ export default function LeadProfileModal({ leadId, onClose }: LeadProfileModalPr
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(false);
   const [enriching, setEnriching] = useState(false);
-  const [outreachOpen, setOutreachOpen] = useState(false);
 
   const fetchLead = useCallback(async (id: number) => {
     setLoading(true);
@@ -137,35 +136,27 @@ export default function LeadProfileModal({ leadId, onClose }: LeadProfileModalPr
             </div>
           </div>
 
-          {/* Outreach section */}
+          {/* Outreach summary */}
           <div className="mt-4 rounded-lg border border-border p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-semibold text-foreground">
-                Outreach {lead.outreach_records.length > 0 && `(${lead.outreach_records.length})`}
-              </h4>
-              <button
-                onClick={() => setOutreachOpen(true)}
-                className="flex items-center gap-2 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition-all hover:bg-accent-hover"
-              >
-                Manage
-              </button>
+            <div className="flex items-center justify-between mb-1">
+              <h4 className="text-sm font-semibold text-foreground">Outreach</h4>
+              <Link href="/outreach" onClick={handleClose}
+                className="text-xs font-medium text-accent hover:text-accent-hover transition-colors">
+                Go to Outreach &rarr;
+              </Link>
             </div>
             {lead.outreach_records.length === 0 ? (
               <p className="text-sm text-muted">No outreach recorded yet.</p>
-            ) : (
-              <div className="space-y-2 text-sm">
-                {lead.outreach_records.map((o) => (
-                  <div key={o.id} className="flex items-center gap-2">
-                    <span className="text-foreground">{o.date}</span>
-                    <Badge label={o.method === "email" ? "Email" : "LinkedIn"} variant={o.method === "email" ? "blue" : "green"} />
-                    <Badge
-                      label={o.status === "pending" ? "Pending" : o.status === "no_reply" ? "No Reply" : o.status === "interested" ? "Interested" : "Not Interested"}
-                      variant={o.status === "interested" ? "green" : o.status === "not_interested" ? "red" : o.status === "pending" ? "yellow" : "gray"}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
+            ) : (() => {
+              const last = lead.outreach_records[0];
+              const methodLabel = last.method === "email" ? "Email" : last.method === "linkedin" ? "LinkedIn" : "Voice";
+              const statusLabel = last.status === "pending" ? "Pending" : last.status === "no_reply" ? "No Reply" : last.status === "interested" ? "Interested" : "Not Interested";
+              return (
+                <p className="text-sm text-muted">
+                  Last: {methodLabel} &middot; {statusLabel} &middot; {last.date} | Total: {lead.outreach_records.length} records
+                </p>
+              );
+            })()}
           </div>
 
           {/* Comments */}
@@ -236,15 +227,6 @@ export default function LeadProfileModal({ leadId, onClose }: LeadProfileModalPr
         </div>
       )}
     </Modal>
-
-    {lead && (
-      <OutreachModal
-        leadId={outreachOpen ? lead.id : null}
-        leadName={lead.full_name}
-        onClose={() => setOutreachOpen(false)}
-        onUpdate={() => fetchLead(lead.id)}
-      />
-    )}
     </>
   );
 }

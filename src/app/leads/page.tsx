@@ -10,7 +10,6 @@ import EmptyState from "@/components/EmptyState";
 import Badge from "@/components/Badge";
 import Modal from "@/components/Modal";
 import LeadProfileModal from "@/components/LeadProfileModal";
-import OutreachModal from "@/components/OutreachModal";
 
 type SortField = "full_name" | "headline" | "comment_count";
 
@@ -25,9 +24,6 @@ export default function LeadsPage() {
 
   // Profile modal
   const [profileLeadId, setProfileLeadId] = useState<number | null>(null);
-
-  // Outreach modal
-  const [outreachLead, setOutreachLead] = useState<{ id: number; name: string } | null>(null);
 
   // Info modal (raw JSON)
   const [infoLead, setInfoLead] = useState<Lead | null>(null);
@@ -249,12 +245,12 @@ export default function LeadsPage() {
                       >
                         Profile
                       </button>
-                      <button
-                        onClick={() => setOutreachLead({ id: lead.id, name: lead.full_name })}
+                      <Link
+                        href="/outreach"
                         className="rounded-md bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors"
                       >
                         Outreach
-                      </button>
+                      </Link>
                       <button
                         onClick={() => setInfoLead(lead)}
                         className="rounded-md bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-400 hover:bg-amber-500/20 transition-colors"
@@ -274,14 +270,6 @@ export default function LeadsPage() {
       <LeadProfileModal
         leadId={profileLeadId}
         onClose={() => setProfileLeadId(null)}
-      />
-
-      {/* Outreach Modal */}
-      <OutreachModal
-        leadId={outreachLead?.id ?? null}
-        leadName={outreachLead?.name ?? ""}
-        onClose={() => setOutreachLead(null)}
-        onUpdate={() => load(search || undefined, ordering, competitorFilter || undefined)}
       />
 
       {/* Info (raw JSON) Modal */}
